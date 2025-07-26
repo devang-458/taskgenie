@@ -1,0 +1,171 @@
+# docker-compose.dev.yml - Development Configuration
+version: '3.8'
+
+networks:
+  taskgenie-dev:
+    driver: bridge
+
+volumes:
+  mongodb_dev_data:
+  redis_dev_data:
+
+services:
+  # Development Database Services
+  mongodb-dev:
+    image: mongo:7.0
+    container_name: taskgenie-mongodb-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: devpassword
+      MONGO_INITDB_DATABASE: taskgenie_dev
+    volumes:
+      - mongodb_dev_data:/data/db
+    ports:
+      - "27018:27017"
+    networks:
+      - taskgenie-dev
+
+  redis-dev:
+    image: redis:7.2-alpine
+    container_name: taskgenie-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass devredis
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6380:6379"
+    networks:
+      - taskgenie-dev
+
+  # Development Services (with hot reload)
+  gateway-dev:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile.dev
+    container_name: taskgenie-gateway-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      CORS_ORIGIN: http://localhost:3000
+      AUTH_SERVICE_URL: http://auth-service-dev:4001
+      TASK_SERVICE_URL: http://task-service-dev:4002
+      AI_SERVICE_URL: http://ai-service-dev:4003
+      USER_SERVICE_URL: http://user-service-dev:4004
+      REALTIME_SERVICE_URL: http://realtime-service-dev:4005
+    volumes:
+      - ./services/gateway:/app
+      - /app/node_modules
+    ports:
+      - "4000:4000"
+    depends_on:
+      - auth-service-dev
+      - task-service-dev
+      - ai-service-dev
+      - user-service-dev
+      - realtime-service-dev
+    networks:
+      - taskgenie-dev
+
+  auth-service-dev:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile.dev
+    container_name: taskgenie-auth-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4001
+      MONGODB_URI: mongodb://admin:devpassword@mongodb-dev:27017/taskgenie_dev?authSource=admin
+      JWT_SECRET: dev-jwt-secret-key
+      JWT_EXPIRES_IN: 7d
+      BCRYPT_ROUNDS: 8
+    volumes:
+      - ./services/auth-service:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb-dev
+    networks:
+      - taskgenie-dev
+
+  task-service-dev:
+    build:
+      context: ./services/task-service
+      dockerfile: Dockerfile.dev
+    container_name: taskgenie-tasks-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4002
+      MONGODB_URI: mongodb://admin:devpassword@mongodb-dev:27017/taskgenie_dev?authSource=admin
+      REDIS_URL: redis://default:devredis@redis-dev:6379
+    volumes:
+      - ./services/task-service:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb-dev
+      - redis-dev
+    networks:
+      - taskgenie-dev
+
+  ai-service-dev:
+    build:
+      context: ./services/ai-service
+      dockerfile: Dockerfile.dev
+    container_name: taskgenie-ai-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4003
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-your-openai-key}
+      OPENAI_MODEL: gpt-3.5-turbo
+      REDIS_URL: redis://default:devredis@redis-dev:6379
+    volumes:
+      - ./services/ai-service:/app
+      - /app/node_modules
+    depends_on:
+      - redis-dev
+    networks:
+      - taskgenie-dev
+
+  user-service-dev:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile.dev
+    container_name: taskgenie-users-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4004
+      MONGODB_URI: mongodb://admin:devpassword@mongodb-dev:27017/taskgenie_dev?authSource=admin
+      REDIS_URL: redis://default:devredis@redis-dev:6379
+    volumes:
+      - ./services/user-service:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb-dev
+      - redis-dev
+    networks:
+      - taskgenie-dev
+
+  realtime-service-dev:
+    build:
+      context: ./services/realtime-service
+      dockerfile: Dockerfile.dev
+    container_name: taskgenie-realtime-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4005
+      CORS_ORIGIN: http://localhost:3000
+      REDIS_URL: redis://default:devredis@redis-dev:6379
+      AUTH_SERVICE_URL: http://auth-service-dev:4001
+    volumes:
+      - ./services/realtime-service:/app
+      - /app/node_modules
+    depends_on:
+      - redis-dev
+      - auth-service-dev
+    networks:
+      - taskgenie-dev
