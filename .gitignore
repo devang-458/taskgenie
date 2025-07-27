@@ -1,2 +1,6 @@
 .env
 .env.*
+
+# Ignore node_modules and package-lock.json in all services
+services/*/node_modules
+services/*/package-lock.json
