@@ -106,7 +106,7 @@ const taskSchema = new mongoose.Schema(
         confidence: { type: Number, min: 0, max: 1 },
         context: mongoose.Schema.Types.Mixed,
         appliedAt: Date,
-        createdAt: { type: DAte, default: Date.now },
+        createdAt: { type: Date, default: Date.now },
       },
     ],
     dependencies: [

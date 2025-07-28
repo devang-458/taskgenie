@@ -1,9 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
-import path from "path";
-import fs from "fs/promises";
-import tasksRoute from "./routes/taskRoute"
-import { redis } from "./utils/cache";
+import tasksRoute from "./routes/taskRoute.js";
+import { redis } from "./utils/cache.js";
 
 const app = express();
 const PORT = process.env.PORT || 4002;
@@ -11,18 +9,27 @@ const PORT = process.env.PORT || 4002;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("api/task", tasksRoute)
+app.use("/api/", tasksRoute);
 
-// Redis
-redis.connect();
+(async () => {
+  try {
+    await redis.connect();
+    console.log("Redis connected");
 
-// MongoDb connection
-mongoose
-  .connect(process.env.MONGODB_URL || "mongodb://localhost:27017/taskgenie_dev")
-  .then(() => console.log("Task Service connnected to MongoDb"))
-  .catch((err) => console.error("MongoDB connection error", err));
+    await mongoose.connect(
+      process.env.MONGODB_URL || "mongodb://localhost:27017/taskgenie_dev"
+    );
+    console.log("MongoDB connected");
+
+    app.listen(PORT, () => {
+      console.log(`Task Server is running on PORT ${PORT}`);
+    });
+  } catch (err) {
+    console.error("Startup Error:", err);
+    process.exit(1);
+  }
+})();
 
 app.listen(PORT, () => {
   console.log(`Task Server is running on PORT ${PORT}`);
 });
-
