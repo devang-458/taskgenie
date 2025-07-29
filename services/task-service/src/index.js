@@ -1,6 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
-import tasksRoute from "./routes/taskRoute.js";
+import tasksRoute from "./routes/taskRoutes.js";
 import { redis } from "./utils/cache.js";
 
 const app = express();
@@ -9,7 +9,18 @@ const PORT = process.env.PORT || 4002;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/api/", tasksRoute);
+app.use("/api", tasksRoute);
+
+// 404 Handler
+app.use("*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: "Route not found"
+  });
+});
+
+// Global error handler
+app.use(errorHandler);
 
 (async () => {
   try {

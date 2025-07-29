@@ -1,8 +1,8 @@
 import express from "express";
 import extractUser from "../middleware/extractUser.middleware.js";
-import { getCacheKey, redis } from "../utils/cache.js";
+import { getCacheKey, invalidateCache, redis } from "../utils/cache.js";
 import { Task } from "../models/taskSchema.js";
-import { Board } from "../models/boardSchema";
+import { Board } from "../models/boardSchema.js";
 const router = express.Router();
 
 router.get("/tasks", extractUser, async (req, res) => {
@@ -216,6 +216,104 @@ router.post("/tasks", extractUser, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to create task",
+    });
+  }
+});
+
+// Delete Task
+router.delete("/tasks/:id", extractUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    const task = await Task.findOne({
+      _id: id,
+      createdBy: userId, // only creator can delete
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found or permission denied",
+      });
+    }
+
+    // Remove from board column
+    await Board.updateOne(
+      { _id: task.boardId, "columns._id": task.id },
+      { $pull: { "columns.$.tasksIds": task._id } }
+    );
+
+    // Delete task
+    await Task.findByIdAndDelete(id);
+
+    // Invalidate caches
+    await invalidateCache([
+      getCacheKey("tasks", userId, "*"),
+      getCacheKey("board", task.boardId),
+      getCacheKey("analytics", userId),
+    ]);
+    res.json({
+      success: true,
+      message: "Task deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete task error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete task",
+    });
+  }
+});
+
+// Add commecnt to task
+router.post("/tasks/:id/comments", extractUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, mentions = [] } = req.body;
+    const userId = req.user.userId;
+
+    if (!content || !content.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Comment content is required",
+      });
+    }
+
+    // Find task and verify access
+    const task = await Task.findOne({
+      _id: id,
+      $or: [{ createdBy: userId }, { assignedTo: userId }],
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Tasks not found",
+      });
+    }
+
+    // Add comment
+    const comment = {
+      content: content.trim(),
+      author: userId,
+      mentions: mentions.filter(Boolean),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    task.comments.push(comment);
+    await task.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Comment added successfully",
+      data: { comment: task.comments[task.comments.length - 1] },
+    });
+  } catch (error) {
+    console.error("Add comment error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to add comment",
     });
   }
 });
