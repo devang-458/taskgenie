@@ -1,6 +1,8 @@
 import express from "express";
 import mongoose from "mongoose";
-import tasksRoute from "./routes/taskRoutes.js";
+import tasksRoute from "./routes/taskRoutes.js"; 
+import projectRoute from "./routes/projectRoutes.js"; 
+import boardRoute from "./routes/boardRoutes.js"; 
 import { redis } from "./utils/cache.js";
 
 const app = express();
@@ -9,7 +11,9 @@ const PORT = process.env.PORT || 4002;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/api", tasksRoute);
+app.use("/api", tasksRoute); 
+app.use("/api", projectRoute); 
+app.use("/api", boardRoute); 
 
 // 404 Handler
 app.use("*", (req, res) => {

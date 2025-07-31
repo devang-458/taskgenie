@@ -178,7 +178,7 @@ router.post(
           uploadedAt: new Date(),
         };
 
-        task.attachments.push(attachment);
+        task.attactments.push(attachment);
         attachments.push(attachment);
       }
 
